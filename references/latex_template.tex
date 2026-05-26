@@ -1,0 +1,81 @@
+\documentclass[UTF8,fontset=windows,10pt]{ctexart}
+\usepackage[a4paper,margin=2.05cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{hyperref}
+
+% === 颜色主题 ===
+\definecolor{mainblue}{RGB}{0,77,128}
+\definecolor{softblue}{RGB}{235,247,255}
+\definecolor{warn}{RGB}{150,70,0}
+
+% === 超链接 ===
+\hypersetup{colorlinks=true,linkcolor=mainblue,urlcolor=mainblue}
+
+% === 段落间距 ===
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlist[itemize]{leftmargin=2em,itemsep=2pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=2pt,topsep=2pt}
+\renewcommand{\arraystretch}{1.25}
+\allowdisplaybreaks
+
+% === 页眉页脚 ===
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small [知识点学习讲义]}
+\rhead{\small 按高等数学章节顺序}
+\cfoot{\small \thepage}
+
+% === 标题格式 ===
+\titleformat{\section}{\Large\bfseries\color{mainblue}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries\color{mainblue}}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\bfseries\color{warn}}{}{0em}{}
+
+% === 自定义命令 ===
+\newcommand{\key}[1]{\textbf{\color{mainblue}#1}}
+\newcommand{\warning}[1]{\textbf{\color{warn}#1}}
+
+% === 提示框环境 ===
+\newenvironment{studybox}[1]
+{\par\medskip\noindent\colorbox{softblue}{\parbox{\dimexpr\linewidth-2\fboxsep}{\textbf{\color{mainblue}#1}}}\par\smallskip}
+{\par\medskip}
+
+\begin{document}
+
+% === 封面 ===
+\begin{center}
+  {\LARGE\bfseries [章节名称]}\\[6pt]
+  {\large 按高等数学章节顺序整理}\\[4pt]
+  {\normalsize 覆盖内容：[列出本章覆盖的知识点]}
+\end{center}
+
+\begin{studybox}{使用方式}
+本讲义按高等数学教材的讲解顺序，系统整理本章核心知识点。每个知识点均配有公式总结、典型例题和常见误区提醒。建议先通读一遍建立框架，再针对不熟悉的类型重点练习。
+\end{studybox}
+
+% === 正文 ===
+% 知识点按逻辑递进排列
+% 例题紧随知识点
+% 易错点用 \warning{} 标注在对应位置
+
+\section{[知识模块一]}
+
+\subsection{[知识点1.1]}
+
+% ... 正文内容 ...
+
+% === 章末检查清单（可选） ===
+\section{学习检查清单}
+\begin{itemize}
+  \item [自检项1]
+  \item [自检项2]
+\end{itemize}
+
+\end{document}

@@ -1,4 +1,10 @@
-\documentclass[UTF8,fontset=windows,10pt]{ctexart}
+% === 文档类 ===
+% fontset 不指定，由 ctex 根据操作系统自动检测：
+%   Windows → 宋体/黑体/楷体等系统字体
+%   macOS   → 苹方/华文等系统字体
+%   Linux   → Fandol 开源字体（需安装 texlive-lang-chinese）
+% 如自动检测失败，可显式指定：fontset=fandol 或 fontset=ubuntu
+\documentclass[UTF8,10pt]{ctexart}
 \usepackage[a4paper,margin=2.05cm]{geometry}
 \usepackage{amsmath,amssymb,mathtools}
 \usepackage{xcolor}

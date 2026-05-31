@@ -20,6 +20,7 @@ description: |
 | `vision-support` skill | 图片/示意图/复杂图表的语义理解 | **按需** | 传入一张含公式或图表的图片让视觉模型描述 | 返回自然语言描述 |
 | LaTeX 编译器 | 编译 .tex 为 PDF | **必需** | `xelatex --version` 或 `pdflatex --version` | 版本号 ≥ 3.x |
 | `ctex` 宏包 | 中文 LaTeX 支持 | **必需** | `kpsewhich ctexart.cls` | 返回文件路径 |
+| 中文字体 | PDF 中正确渲染中文 | **必需** | 编译测试文档并用 `pdftotext` 提取文字验证 | 中文正常显示 |
 
 ### 检测流程
 
@@ -28,9 +29,29 @@ description: |
 ```
 1. xelatex --version          → 确认 LaTeX 可用
 2. kpsewhich ctexart.cls      → 确认中文支持已安装
-3. 调用 mineru skill          → 确认 PDF 解析能力可用
-4. 调用 vision-support skill  → 确认视觉模型可用（可选，仅需按需调用时）
+3. 编译测试文档并验证中文字体  → 确认 PDF 能正确渲染中文（见下方详细步骤）
+4. 调用 mineru skill          → 确认 PDF 解析能力可用
+5. 调用 vision-support skill  → 确认视觉模型可用（可选，仅需按需调用时）
 ```
+
+**中文字体渲染测试**（第3步，关键！）：
+
+```bash
+# 创建最小测试文档
+echo '\documentclass[UTF8,10pt]{ctexart}\begin{document}中文测试\end{document}' > /tmp/font_test.tex
+# 编译
+xelatex -interaction=nonstopmode -output-directory=/tmp /tmp/font_test.tex
+# 提取文字验证中文是否渲染
+pdftotext /tmp/font_test.pdf - | grep "中文测试"
+```
+
+如果 `pdftotext` 输出包含"中文测试"，说明字体正常。如果是空白或乱码，则中文字体有问题，需修复后再继续。
+
+**常见中文字体问题处理**：
+- ctex 默认不指定 `fontset` 时会自动检测操作系统。如果自动检测失败：
+  - 尝试 `fontset=fandol`（TeX Live 自带中文开源字体，跨平台可用）
+  - 或 `fontset=ubuntu`（Ubuntu/Debian 系统）
+  - 安装缺失字体：`sudo apt install texlive-lang-chinese`
 
 **常见缺失处理**：
 - LaTeX 缺失 → `sudo apt install texlive-xetex texlive-latex-recommended texlive-latex-extra`
@@ -154,6 +175,18 @@ description: |
 
 Agent prompt 参见 `references/review_agents.md` 中的"合并审查"模板。
 
+#### PDF 可视验证（视觉渲染抽查）
+
+⚠️ 文本审查无法发现字体缺失、公式截断、布局错位等渲染问题。**必须在修改编译后抽查 PDF 的实际渲染效果**。
+
+1. 每章随机抽 2-3 页（必须包含封面页、正文公式密集页、例题页），用 `pdftoppm` 转为图片：
+   ```bash
+   pdftoppm -f <页码> -l <页码> -r 150 -png <pdf文件> /tmp/review_page
+   ```
+2. 将图片传入 `vision-support` skill，提示词：
+   > "检查这张课程讲义 PDF 截图：(1) 中文字符是否全部正常显示（有无方块/空白/叠字）；(2) LaTeX 数学公式是否渲染完整；(3) 排版布局是否正常（无文字越界/重叠）;(4) 颜色和框线是否正常。逐一说明。"
+3. 如有问题，立即修复 .tex 源文件并重新编译验证，直到所有抽查页通过
+
 #### 修改 + 最终核验（循环至通过）
 
 1. **批量修改** — 汇总所有 agent 的问题清单，一次性修改所有 .tex 文件，同时全局搜索替换机构名/教师名为通用说法，然后重新编译所有 PDF
@@ -173,7 +206,7 @@ Agent prompt 参见 `references/review_agents.md` 中的"合并审查"模板。
 ## LaTeX 模板
 
 完整模板见 `references/latex_template.tex`。关键样式：
-- 文档类：`ctexart`，字体 `fontset=windows`，字号 `10pt`
+- 文档类：`ctexart`，**不指定 `fontset`（由 ctex 自动检测系统字体）**，字号 `10pt`
 - 页面：A4，margin=2.05cm
 - 颜色：mainblue(RGB 0,77,128) / softblue(RGB 235,247,255) / warn(RGB 150,70,0)
 - 自定义命令：`\key{关键词}` 蓝色加粗、`\warning{提醒}` 棕色加粗

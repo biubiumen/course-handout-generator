@@ -14,12 +14,12 @@ description: |
 
 ### 必需依赖
 
-| 依赖 | 用途 | 检测命令 | 预期输出 |
-|------|------|----------|----------|
-| `mineru` skill | PDF 结构化解析（OCR、LaTeX 公式提取、表格识别） | 调用 mineru skill 对任意 PDF 解析 | 返回结构化 Markdown |
-| `vision-support` skill | 图片/示意图/复杂图表的语义理解 | 传入一张含公式或图表的图片让视觉模型描述 | 返回自然语言描述 |
-| LaTeX 编译器 | 编译 .tex 为 PDF | `xelatex --version` 或 `pdflatex --version` | 版本号 ≥ 3.x |
-| `ctex` 宏包 | 中文 LaTeX 支持 | `kpsewhich ctexart.cls` | 返回文件路径 |
+| 依赖 | 用途 | 必要性 | 检测命令 | 预期输出 |
+|------|------|--------|----------|----------|
+| `mineru` skill | PDF 结构化解析（OCR、LaTeX 公式提取、表格识别） | **必需** | 调用 mineru skill 对任意 PDF 解析 | 返回结构化 Markdown |
+| `vision-support` skill | 图片/示意图/复杂图表的语义理解 | **按需** | 传入一张含公式或图表的图片让视觉模型描述 | 返回自然语言描述 |
+| LaTeX 编译器 | 编译 .tex 为 PDF | **必需** | `xelatex --version` 或 `pdflatex --version` | 版本号 ≥ 3.x |
+| `ctex` 宏包 | 中文 LaTeX 支持 | **必需** | `kpsewhich ctexart.cls` | 返回文件路径 |
 
 ### 检测流程
 
@@ -29,7 +29,7 @@ description: |
 1. xelatex --version          → 确认 LaTeX 可用
 2. kpsewhich ctexart.cls      → 确认中文支持已安装
 3. 调用 mineru skill          → 确认 PDF 解析能力可用
-4. 调用 vision-support skill  → 确认视觉模型可用
+4. 调用 vision-support skill  → 确认视觉模型可用（可选，仅需按需调用时）
 ```
 
 **常见缺失处理**：
@@ -60,23 +60,30 @@ description: |
 
 ### 阶段〇：素材预处理
 
-在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + vision-support。**
+在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + vision-support（按需）。**
 
 1. **mineru 批量解析 PDF**
    - 对 `课件PDF/` 文件夹中每个分章 PDF 调用 mineru skill
    - mineru 输出结构化 Markdown，自动识别并保留 LaTeX 数学公式（行内 + 块级）、表格结构、阅读顺序
    - 每章产物命名为 `chXX_parsed.md`
 
-2. **视觉模型补位**
-   - mineru 解析结果中标记为 `[FIGURE]` 或表格/公式区域解析不完整的位置，截图送入 `vision-support` skill
-   - 视觉模型用自然语言描述图中内容（几何示意图、函数图像、流程图、手写批注等）
-   - 将描述补充到对应章的 `chXX_parsed.md` 中
+2. **视觉模型按需补位** ⚠️ 额度有限，仅必要时调用
+   - 通读 mineru 每章输出，对其中 `[FIGURE]` 标记逐一判断：图中信息能否从上下文推断？
+   - **需要调用**的场景（满足任一）：
+     - 图包含关键几何关系/函数曲线，上下文未用文字说明
+     - 流程图/思维导图，不看图无法理解逻辑结构
+     - mineru 输出中明显有公式/表格区域乱码或缺失
+   - **跳过**的场景：
+     - 上下文已将图的信息用文字完整表述
+     - 纯装饰性图片、封面、页眉页脚
+     - 图中内容简单可推断（如「如图1-3所示的坐标系」且上下文已描述坐标轴）
+   - 确认需要后才将该图截图送入 `vision-support` skill，描述文字补充到 `chXX_parsed.md`
 
 3. **合并产物**
-   - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + 视觉模型图片描述
+   - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + （按需）视觉模型图片描述
    - 这个文件是后续阶段一（知识点提取）和阶段二（讲义编写）的**唯一素材源**
 
-> **关键**：mineru 负责把公式变回 LaTeX，vision-support 负责把图表变回文字。两者缺一不可——仅有 mineru 会丢图表信息，仅有视觉模型则公式提取质量不可靠。
+> **关键**：mineru 是主力，负责把公式变回 LaTeX。vision-support 是后备，只在 mineru 输出不足以理解图片时才调用。**不要无差别把所有图都喂给视觉模型。**
 
 ### 阶段一：素材分析与规划
 

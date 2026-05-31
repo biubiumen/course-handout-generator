@@ -162,15 +162,12 @@ Agent prompt 参见 `references/review_agents.md` 中的"合并审查"模板。
 ### 阶段四：最终整理
 
 1. 全局搜索并替换所有机构名/教师名为通用说法
-2. 删除所有 LaTeX 编译垃圾文件（.aux, .log, .out, .toc, .synctex.gz, .fdb_latexmk, .fls）
-3. 创建独立的 PDF 文件夹，将 PDF 复制过去
-4. 删除旧 zip，重新打包
-5. 验证最终文件结构：
+2. 删除 LaTeX 编译垃圾文件（.aux, .log, .out, .toc, .synctex.gz, .fdb_latexmk, .fls）
+3. 最终文件结构：
    ```
    项目目录/
-   ├── 课程讲义PDF/     ← 所有 PDF
-   ├── chapter_tex/      ← 所有 .tex 源文件
-   └── 课程讲义.zip      ← PDF 打包
+   ├── 课程讲义PDF/     ← 直接编译输出 PDF，也是审查和分发用的同一份
+   └── tex/             ← 所有 .tex 源文件
    ```
 
 ## LaTeX 模板

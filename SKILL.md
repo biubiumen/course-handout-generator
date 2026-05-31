@@ -63,11 +63,9 @@ description: |
 在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + vision-support（按需）。**
 
 1. **mineru 批量解析 PDF**
-   - 对 `课件PDF/` 文件夹中每个分章 PDF 调用 mineru skill
-   - mineru 对每份 PDF 输出两类产物：
-     - `chXX_parsed.md`：结构化 Markdown，自动识别并保留 LaTeX 数学公式（行内 + 块级）、表格结构、阅读顺序，图片位置以标记引用
-     - `images/` 文件夹：从 PDF 中提取出的所有图片文件（编号与 md 中标记对应）
-   - 每章独立一个目录，如 `ch01/` 内含 `ch01_parsed.md` + `images/`
+   - 使用 `mineru-open-api extract` 支持批量传入：`mineru-open-api extract *.pdf -o ./parsed/`
+   - 输出结构化 Markdown，自动识别并保留 LaTeX 数学公式（行内 + 块级）、表格结构、阅读顺序
+   - 每章产物命名为 `chXX_parsed.md`
 
 2. **视觉模型按需补位** ⚠️ 额度有限，仅必要时调用
    - 通读 mineru 每章输出的 `chXX_parsed.md`，对其中引用的图片逐一判断：图中信息能否从上下文推断？
@@ -79,8 +77,8 @@ description: |
      - 上下文已将图的信息用文字完整表述
      - 纯装饰性图片、封面、页眉页脚
      - 图中内容简单可推断（如「如图1-3所示的坐标系」且上下文已描述坐标轴）
-   - 筛选完毕后，将需要描述的图片**批量传入** `vision-support` skill（支持单张或多张一次性调用），视觉模型返回每张图的自然语言描述
-   - 将描述文字按编号回填到 `chXX_parsed.md` 对应位置
+   - 确认需要后，将对应图片传入 `vision-support` skill（`node vision.mjs <图片路径> "描述这张图"`），获取自然语言描述
+   - 将描述文字回填到 `chXX_parsed.md` 对应位置
 
 3. **合并产物**
    - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + （按需）视觉模型图片描述

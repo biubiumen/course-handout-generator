@@ -156,17 +156,16 @@ Agent prompt 参见 `references/review_agents.md` 中的"合并审查"模板。
 
 #### 修改 + 最终核验
 
-1. **批量修改** — 汇总所有 agent 的问题清单，一次性修改所有 .tex 文件，重新编译验证所有 PDF 通过
+1. **批量修改** — 汇总所有 agent 的问题清单，一次性修改所有 .tex 文件，同时全局搜索替换机构名/教师名为通用说法，然后重新编译所有 PDF
 2. **最终核验** — 每章一个 agent 快速确认：之前列出的问题是否全部修复、无新引入问题。核验模板参见 `references/review_agents.md` 中的"最终核验"模板
 
-### 阶段四：最终整理
+### 阶段四：最终清理
 
-1. 全局搜索并替换所有机构名/教师名为通用说法
-2. 删除 LaTeX 编译垃圾文件（.aux, .log, .out, .toc, .synctex.gz, .fdb_latexmk, .fls）
-3. 最终文件结构：
+1. 删除 LaTeX 编译垃圾文件（.aux, .log, .out, .toc, .synctex.gz, .fdb_latexmk, .fls）
+2. 最终文件结构：
    ```
    项目目录/
-   ├── 课程讲义PDF/     ← 直接编译输出 PDF，也是审查和分发用的同一份
+   ├── 课程讲义PDF/     ← 编译输出，审查和分发同一份
    └── tex/             ← 所有 .tex 源文件
    ```
 

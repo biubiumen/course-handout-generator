@@ -8,6 +8,38 @@ description: |
 
 根据用户提供的素材（教材 PDF、PPT、往年考卷、习题册等），按照系统化方法论产出 LaTeX 复习讲义 PDF。
 
+## 环境检测
+
+本 skill 依赖以下工具链，**首次部署或在新机器上使用前必须逐项验证**。缺少任何一项都会导致后续阶段无法正常运行。
+
+### 必需依赖
+
+| 依赖 | 用途 | 检测命令 | 预期输出 |
+|------|------|----------|----------|
+| `mineru` skill | PDF 结构化解析（OCR、LaTeX 公式提取、表格识别） | 调用 mineru skill 对任意 PDF 解析 | 返回结构化 Markdown |
+| `vision-support` skill | 图片/示意图/复杂图表的语义理解 | 传入一张含公式或图表的图片让视觉模型描述 | 返回自然语言描述 |
+| LaTeX 编译器 | 编译 .tex 为 PDF | `xelatex --version` 或 `pdflatex --version` | 版本号 ≥ 3.x |
+| `ctex` 宏包 | 中文 LaTeX 支持 | `kpsewhich ctexart.cls` | 返回文件路径 |
+
+### 检测流程
+
+开始任务前，按顺序执行：
+
+```
+1. xelatex --version          → 确认 LaTeX 可用
+2. kpsewhich ctexart.cls      → 确认中文支持已安装
+3. 调用 mineru skill          → 确认 PDF 解析能力可用
+4. 调用 vision-support skill  → 确认视觉模型可用
+```
+
+**常见缺失处理**：
+- LaTeX 缺失 → `sudo apt install texlive-xetex texlive-latex-recommended texlive-latex-extra`
+- ctex 缺失 → `sudo apt install texlive-lang-chinese`
+- mineru 未配置 → 参考 mineru skill 文档完成 API 配置
+- vision-support 未配置 → 参考 vision-support skill 文档完成模型接入
+
+> **注意**：如果 mineru 或 vision-support 不可用，本 skill 仍可运行但会退化为基础 PDF 文本提取，公式和图表质量会显著下降。**建议先配置好再使用。**
+
 ## 前置确认
 
 开始前向用户确认以下信息（用户可能已在对话中提供部分）：
@@ -26,9 +58,29 @@ description: |
 
 ## 工作流程
 
+### 阶段〇：素材预处理
+
+在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + vision-support。**
+
+1. **mineru 批量解析 PDF**
+   - 对 `课件PDF/` 文件夹中每个分章 PDF 调用 mineru skill
+   - mineru 输出结构化 Markdown，自动识别并保留 LaTeX 数学公式（行内 + 块级）、表格结构、阅读顺序
+   - 每章产物命名为 `chXX_parsed.md`
+
+2. **视觉模型补位**
+   - mineru 解析结果中标记为 `[FIGURE]` 或表格/公式区域解析不完整的位置，截图送入 `vision-support` skill
+   - 视觉模型用自然语言描述图中内容（几何示意图、函数图像、流程图、手写批注等）
+   - 将描述补充到对应章的 `chXX_parsed.md` 中
+
+3. **合并产物**
+   - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + 视觉模型图片描述
+   - 这个文件是后续阶段一（知识点提取）和阶段二（讲义编写）的**唯一素材源**
+
+> **关键**：mineru 负责把公式变回 LaTeX，vision-support 负责把图表变回文字。两者缺一不可——仅有 mineru 会丢图表信息，仅有视觉模型则公式提取质量不可靠。
+
 ### 阶段一：素材分析与规划
 
-1. **读取素材** — 读取用户提供的所有 PDF/PPT/图片，提取知识点清单
+1. **读取素材** — 读取阶段〇产出的所有 `chXX_parsed.md`，提取知识点清单
 2. **确定边界** — 根据考试范围，明确哪些知识点入、哪些不入
 3. **规划章节** — 按逻辑递进排列章节顺序，每个知识点标注来源（哪份素材的第几页）
 4. **输出规划给用户确认** — 列出章节目录和每章覆盖的知识点，用户确认后再开始编写

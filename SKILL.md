@@ -17,10 +17,33 @@ description: |
 | 依赖 | 用途 | 必要性 | 检测命令 | 预期输出 |
 |------|------|--------|----------|----------|
 | `mineru` skill | PDF 结构化解析（OCR、LaTeX 公式提取、表格识别） | **必需** | 调用 mineru skill 对任意 PDF 解析 | 返回结构化 Markdown |
-| `vision-support` skill | 图片/示意图/复杂图表的语义理解 | **按需** | 传入一张含公式或图表的图片让视觉模型描述 | 返回自然语言描述 |
 | LaTeX 编译器 | 编译 .tex 为 PDF | **必需** | `xelatex --version` 或 `pdflatex --version` | 版本号 ≥ 3.x |
 | `ctex` 宏包 | 中文 LaTeX 支持 | **必需** | `kpsewhich ctexart.cls` | 返回文件路径 |
 | 中文字体 | PDF 中正确渲染中文 | **必需** | 编译测试文档并用 `pdftotext` 提取文字验证 | 中文正常显示 |
+
+### 模型能力检测
+
+**在开始任务前，必须先检测当前模型是否具备图片理解能力**。这决定了后续阶段中图片处理的方式。
+
+**检测方法**：
+1. 读取当前环境变量 `ANTHROPIC_MODEL` 的值
+2. 根据模型名称判断是否支持 vision：
+   - **支持 vision 的模型**（直接处理图片）：
+     - Claude 系列：`claude-opus-*`、`claude-sonnet-*`、`claude-haiku-*`
+     - GPT-4V/4o 系列：`gpt-4o*`、`gpt-4-turbo*`
+     - Gemini 系列：`gemini-pro-vision`、`gemini-1.5*`、`gemini-2.0*`
+     - 其他明确标注 vision/multimodal 的模型
+   - **不支持 vision 的模型**（需要调用 vision-support skill）：
+     - 纯文本模型：`deepseek-*`、`gpt-3.5*`、`gpt-4`（非 turbo/4o）、`llama-*`、`mixtral-*`
+     - 未标注 vision 的模型
+   - **不确定时**：尝试用当前模型描述一张简单测试图片，若返回有效描述则支持，否则不支持
+
+3. 将检测结果记录为 `VISION_CAPABLE`（true/false），后续阶段根据此标志决定图片处理方式
+
+**vision-support skill（后备方案）**：
+- 仅当 `VISION_CAPABLE=false` 时需要配置
+- 用途：调用外部视觉模型处理图片
+- 检测命令：传入一张含公式或图表的图片让视觉模型描述，返回自然语言描述
 
 ### 检测流程
 
@@ -30,8 +53,9 @@ description: |
 1. xelatex --version          → 确认 LaTeX 可用
 2. kpsewhich ctexart.cls      → 确认中文支持已安装
 3. 编译测试文档并验证中文字体  → 确认 PDF 能正确渲染中文（见下方详细步骤）
-4. 调用 mineru skill          → 确认 PDF 解析能力可用
-5. 调用 vision-support skill  → 确认视觉模型可用（可选，仅需按需调用时）
+4. 检测当前模型的 vision 能力  → 确定 VISION_CAPABLE 标志
+5. 调用 mineru skill          → 确认 PDF 解析能力可用
+6. [仅当 VISION_CAPABLE=false] 调用 vision-support skill → 确认后备视觉模型可用
 ```
 
 **中文字体渲染测试**（第3步，关键！）：
@@ -57,9 +81,12 @@ pdftotext /tmp/font_test.pdf - | grep "中文测试"
 - LaTeX 缺失 → `sudo apt install texlive-xetex texlive-latex-recommended texlive-latex-extra`
 - ctex 缺失 → `sudo apt install texlive-lang-chinese`
 - mineru 未配置 → 参考 mineru skill 文档完成 API 配置
-- vision-support 未配置 → 参考 vision-support skill 文档完成模型接入
+- vision-support 未配置（仅当 VISION_CAPABLE=false 时需要） → 参考 vision-support skill 文档完成模型接入
 
-> **注意**：如果 mineru 或 vision-support 不可用，本 skill 仍可运行但会退化为基础 PDF 文本提取，公式和图表质量会显著下降。**建议先配置好再使用。**
+> **注意**：
+> - 如果 mineru 不可用，本 skill 仍可运行但会退化为基础 PDF 文本提取，公式和图表质量会显著下降。
+> - 如果当前模型不支持 vision 且 vision-support 未配置，图片理解功能将被禁用，仅依赖 mineru 的文本输出。**建议先配置好再使用。**
+> - 如果当前模型支持 vision（如 Claude、GPT-4o、Gemini），则无需配置 vision-support。
 
 ## 前置确认
 
@@ -70,7 +97,7 @@ pdftotext /tmp/font_test.pdf - | grep "中文测试"
 3. **习题来源** — 例题和练习题从哪选取（660题、课后题、考卷等）
 4. **输出章数** — 预计分几章，每章覆盖什么主题
 5. **特殊模块** — 如数三的经济应用、差分方程等专属内容
-6. **视觉调用上限** — 每份 PDF 最多用视觉模型描述几张图片（默认 10 张，额度紧张可下调）
+6. **视觉调用上限**（仅当 `VISION_CAPABLE=false` 时询问） — 每份 PDF 最多用 vision-support 描述几张图片（默认 10 张）。**此项为兜底配置**，当模型自动判断 vision 能力出错时，用户可手动指定上限以控制 API 调用量。若 `VISION_CAPABLE=true`，则跳过此项
 
 **重要原则**：
 - 教材没提到的知识点一律不加
@@ -82,16 +109,16 @@ pdftotext /tmp/font_test.pdf - | grep "中文测试"
 
 ### 阶段〇：素材预处理
 
-在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + vision-support（按需）。**
+在分析知识点之前，必须先将原始 PDF/PPT/图片转化为结构化文本。**本 skill 的核心工具链是 mineru + 图片理解（当前模型或 vision-support）。**
 
 1. **mineru 批量解析 PDF**
    - 使用 `mineru-open-api extract` 支持批量传入：`mineru-open-api extract *.pdf -o ./parsed/`
    - 输出结构化 Markdown，自动识别并保留 LaTeX 数学公式（行内 + 块级）、表格结构、阅读顺序
    - 每章产物命名为 `chXX_parsed.md`
 
-2. **视觉模型按需补位** ⚠️ 额度有限，仅必要时调用
+2. **图片理解按需补位** ⚠️ 根据 `VISION_CAPABLE` 标志选择处理方式
    - 通读 mineru 每章输出的 `chXX_parsed.md`，对其中引用的图片逐一判断：图中信息能否从上下文推断？
-   - **需要调用**的场景（满足任一）：
+   - **需要处理**的场景（满足任一）：
      - 图包含关键几何关系/函数曲线，上下文未用文字说明
      - 流程图/思维导图，不看图无法理解逻辑结构
      - mineru 输出中明显有公式/表格区域乱码或缺失
@@ -99,15 +126,24 @@ pdftotext /tmp/font_test.pdf - | grep "中文测试"
      - 上下文已将图的信息用文字完整表述
      - 纯装饰性图片、封面、页眉页脚
      - 图中内容简单可推断（如「如图1-3所示的坐标系」且上下文已描述坐标轴）
-   - 确认需要后，按优先级排序（关键图表 > 辅助图表），**每份 PDF 调用上限为前置确认中约定的数量（默认 10 张）**，超出则截断，只取最重要的
-   - 将对应图片传入 `vision-support` skill（`node vision.mjs <图片路径> "描述这张图"`），获取自然语言描述
-   - 将描述文字回填到 `chXX_parsed.md` 对应位置
+
+   **处理方式（根据 VISION_CAPABLE 自动选择）**：
+
+   - **若 VISION_CAPABLE=true**（当前模型支持图片理解）：
+     - 直接用当前模型（Claude/GPT-4o/Gemini 等）读取图片
+     - 提示词：`"请详细描述这张图片的内容，包括所有数学公式、几何图形、坐标轴、数据点等关键信息。用自然语言完整表述，以便后续转换为 LaTeX。"`
+     - 将描述文字回填到 `chXX_parsed.md` 对应位置
+
+   - **若 VISION_CAPABLE=false**（当前模型不支持图片理解，如 DeepSeek）：
+     - 按优先级排序（关键图表 > 辅助图表），**每份 PDF 调用上限为前置确认中约定的数量（默认 10 张）**，超出则截断，只取最重要的
+     - 将对应图片传入 `vision-support` skill（`node vision.mjs <图片路径> "描述这张图"`），获取自然语言描述
+     - 将描述文字回填到 `chXX_parsed.md` 对应位置
 
 3. **合并产物**
-   - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + （按需）视觉模型图片描述
+   - 每章最终得到一个 `chXX_parsed.md`，包含：mineru 结构化文本 + （按需）图片描述
    - 这个文件是后续阶段一（知识点提取）和阶段二（讲义编写）的**唯一素材源**
 
-> **关键**：mineru 是主力，负责把公式变回 LaTeX。vision-support 是后备，只在 mineru 输出不足以理解图片时才调用。**不要无差别把所有图都喂给视觉模型。**
+> **关键**：mineru 是主力，负责把公式变回 LaTeX。图片理解是补充，只在 mineru 输出不足以理解图片时才调用。**若当前模型支持 vision，优先直接使用，避免额外 API 调用；若不支持，则调用 vision-support skill 作为后备。**
 
 ### 阶段一：素材分析与规划
 
@@ -183,8 +219,17 @@ Agent prompt 参见 `references/review_agents.md` 中的"合并审查"模板。
    ```bash
    pdftoppm -f <页码> -l <页码> -r 150 -png <pdf文件> /tmp/review_page
    ```
-2. 将图片传入 `vision-support` skill，提示词：
-   > "检查这张课程讲义 PDF 截图：(1) 中文字符是否全部正常显示（有无方块/空白/叠字）；(2) LaTeX 数学公式是否渲染完整；(3) 排版布局是否正常（无文字越界/重叠）;(4) 颜色和框线是否正常。逐一说明。"
+
+2. **根据 VISION_CAPABLE 标志选择验证方式**：
+
+   - **若 VISION_CAPABLE=true**（当前模型支持图片理解）：
+     - 直接用当前模型读取图片，提示词：
+     > "检查这张课程讲义 PDF 截图：(1) 中文字符是否全部正常显示（有无方块/空白/叠字）；(2) LaTeX 数学公式是否渲染完整；(3) 排版布局是否正常（无文字越界/重叠）;(4) 颜色和框线是否正常。逐一说明。"
+
+   - **若 VISION_CAPABLE=false**（当前模型不支持图片理解）：
+     - 将图片传入 `vision-support` skill，提示词：
+     > "检查这张课程讲义 PDF 截图：(1) 中文字符是否全部正常显示（有无方块/空白/叠字）；(2) LaTeX 数学公式是否渲染完整；(3) 排版布局是否正常（无文字越界/重叠）;(4) 颜色和框线是否正常。逐一说明。"
+
 3. 如有问题，立即修复 .tex 源文件并重新编译验证，直到所有抽查页通过
 
 #### 修改 + 最终核验（循环至通过）
